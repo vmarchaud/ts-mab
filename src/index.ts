@@ -1,6 +1,7 @@
 import 'express-async-errors'
 
 import express from 'express'
+import './types/express'
 import bodyParser from 'body-parser'
 import { createTerminus } from '@godaddy/terminus'
 import settings from '../config'
@@ -11,6 +12,9 @@ import { BanditManager } from './bandits/manager'
 import { BanditStoreType } from './bandits/store/types'
 import * as url from 'url'
 import { BanditType } from './bandits/types'
+import router from './routes/index'
+import * as path from 'path'
+import { promises } from 'fs'
 
 export async function startup () {
   // setup bandit manager
@@ -42,6 +46,18 @@ export async function startup () {
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
     req.manager = manager
     return next()
+  })
+
+  app.use('/api/', await router())
+
+  const openapiFilePath = path.resolve(__dirname, 'routes', 'swagger.yaml')
+  const openapiFile = await promises.readFile(openapiFilePath, 'utf-8')
+  app.get('/openapi', (req: express.Request, res: express.Response) => {
+    res.setHeader('Content-Type', 'application/yaml')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE')
+    res.setHeader('Access-control-Allow-Headers', 'Content-Type,Authorization')
+    return res.status(200).send(openapiFile)
   })
 
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -77,8 +93,9 @@ if (require.main === module) {
       }
     })
     server.on('error', err => Promise.reject(err))
-    server.listen(parseInt(port, 10), () => logger.info(`Tracker ingester started on port ${port}`))
+    server.listen(parseInt(port, 10), () => logger.info(`${settings.SERVICE_NAME} started on port ${port}`))
   }).catch(err => {
+    console.error(err)
     logger.fatal(err)
     return process.exit(1)
   })

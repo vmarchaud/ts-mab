@@ -1,0 +1,237 @@
+components:
+    examples: {}
+    headers: {}
+    parameters: {}
+    requestBodies: {}
+    responses: {}
+    schemas:
+        BanditArm:
+            properties:
+                successes:
+                    type: number
+                    format: double
+                trials:
+                    type: number
+                    format: double
+                identifier:
+                    type: string
+            required:
+                - successes
+                - trials
+                - identifier
+            type: object
+        BanditMetadata:
+            properties:
+                scope:
+                    type: string
+            required:
+                - scope
+            type: object
+        SerializedBandit:
+            properties:
+                identifier:
+                    type: string
+                metadata:
+                    $ref: '#/components/schemas/BanditMetadata'
+                arms:
+                    items:
+                        $ref: '#/components/schemas/BanditArm'
+                    type: array
+            required:
+                - identifier
+                - metadata
+                - arms
+            type: object
+        PickArmsBanditResult:
+            properties:
+                pickId:
+                    type: string
+                bandit:
+                    type: string
+                arms:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - pickId
+                - bandit
+                - arms
+            type: object
+        CreateBody:
+            properties:
+                scope:
+                    type: string
+                arms:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - scope
+                - arms
+            type: object
+        UpdateBody:
+            properties:
+                arms:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - arms
+            type: object
+    securitySchemes: {}
+info:
+    title: ts-mab
+    version: unknown
+openapi: 3.0.0
+paths:
+    '/bandits/{id}':
+        get:
+            operationId: Get
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SerializedBandit'
+                    description: Ok
+                '404':
+                    content:
+                        application/json: {}
+                    description: ""
+            security: []
+            parameters:
+                -
+                    in: path
+                    name: id
+                    required: true
+                    schema:
+                        type: string
+        put:
+            operationId: Create
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SerializedBandit'
+                    description: Ok
+                '409':
+                    content:
+                        application/json: {}
+                    description: ""
+            security: []
+            parameters:
+                -
+                    in: path
+                    name: id
+                    required: true
+                    schema:
+                        type: string
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateBody'
+        post:
+            operationId: Update
+            responses:
+                '200':
+                    content:
+                        application/json: {}
+                    description: ""
+                '204':
+                    content:
+                        application/json: {}
+                    description: 'No content'
+                '404':
+                    content:
+                        application/json: {}
+                    description: ""
+            security: []
+            parameters:
+                -
+                    in: path
+                    name: id
+                    required: true
+                    schema:
+                        type: string
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateBody'
+    '/bandits/{id}/pick/{pickId}':
+        get:
+            operationId: Pick
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PickArmsBanditResult'
+                    description: Ok
+                '404':
+                    content:
+                        application/json: {}
+                    description: ""
+            security: []
+            parameters:
+                -
+                    in: path
+                    name: id
+                    required: true
+                    schema:
+                        type: string
+                -
+                    in: path
+                    name: pickId
+                    required: true
+                    schema:
+                        type: string
+                -
+                    in: query
+                    name: count
+                    required: false
+                    schema:
+                        type: string
+    '/bandits/{id}/reward/{arm}':
+        get:
+            operationId: Reward
+            responses:
+                '200':
+                    content:
+                        application/json: {}
+                    description: ""
+                '204':
+                    content:
+                        application/json: {}
+                    description: 'No content'
+                '404':
+                    content:
+                        application/json: {}
+                    description: ""
+            security: []
+            parameters:
+                -
+                    in: path
+                    name: id
+                    required: true
+                    schema:
+                        type: string
+                -
+                    in: path
+                    name: arm
+                    required: true
+                    schema:
+                        type: string
+                -
+                    in: query
+                    name: pickId
+                    required: false
+                    schema:
+                        type: string
+servers:
+    -
+        url: /

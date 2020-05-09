@@ -19,7 +19,7 @@ export type FetchResultOptions = {
 }
 
 export interface BanditStore {
-  find (options: StoreLoadOptions): Promise<BaseBandit>
+  find (options: StoreLoadOptions): Promise<BaseBandit | undefined>
   create (bandit: Bandit): Promise<void>
 
   fetchResult (options: FetchResultOptions): Promise<PickArmsBanditResult | undefined>

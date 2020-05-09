@@ -3,6 +3,7 @@ import { BanditStoreType, BanditStore } from './store/types'
 import { getBanditStore, getBanditImpl } from './utils'
 import { RedisBanditStoreOptions } from './store/redis'
 import { of } from 'await-of'
+import httpErrors from 'http-errors'
 
 export class BanditManager {
   private _store: BanditStore
@@ -25,7 +26,7 @@ export class BanditManager {
       useArmSubset: options.useArmSubset
     }))
     if (bandit === undefined || err instanceof Error) {
-      throw err ?? new Error(`Bandit not found, ${options.identifier}`)
+      throw err ?? new httpErrors.NotFound(`Bandit not found: ${options.identifier}`)
     }
     const pickedArms: BanditArm[] = []
     for (let i = 0; i < options.armsCount; i++) {

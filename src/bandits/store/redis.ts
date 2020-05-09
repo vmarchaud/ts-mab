@@ -34,11 +34,11 @@ export class RedisBanditStore implements BanditStore {
     this._redis.disconnect()
   }
 
-  async find (options: StoreLoadOptions): Promise<BaseBandit> {
+  async find (options: StoreLoadOptions): Promise<BaseBandit | undefined> {
     // fetch metadata
     const rawMetadata = await this._redis.get(`${options.identifier}:metadata`)
     if (rawMetadata === null) {
-      throw new Error(`Bandit metadata not found`)
+      return undefined
     }
     const [ metadata, err ] = await of(decodeIO(BanditMetadataIO, JSON.parse(rawMetadata)))
     if (err || metadata === undefined) {
