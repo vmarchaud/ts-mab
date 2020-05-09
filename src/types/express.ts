@@ -1,11 +1,9 @@
-import { Publisher } from '../lib/publisher'
-import { Redis } from 'ioredis'
+import { BanditManager } from '../bandits/manager'
 
 declare global {
   namespace Express {
     export interface Request {
-      publisher: Publisher,
-      redis: Redis
+      manager: BanditManager
     }
   }
 }

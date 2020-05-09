@@ -5,22 +5,27 @@ import bodyParser from 'body-parser'
 import { createTerminus } from '@godaddy/terminus'
 import settings from '../config'
 import http from 'http'
-import { Publisher } from './lib/publisher'
 import logger from './lib/logger'
 import cors from 'cors'
+import { BanditManager } from './bandits/manager'
+import { BanditStoreType } from './bandits/store/types'
+import * as url from 'url'
+import { BanditType } from './bandits/types'
 
 export async function startup () {
-  // Setup publisher
-  const publisher = new Publisher()
-  const projectId = settings.get('GCP_PROJECT_ID')
-  const topic = settings.get('TRACKER_TOPIC') as string
-  if (projectId === undefined) {
-    throw new Error(`Please set GCP_PROJECT_ID value`)
-  }
-  if (topic.length === 0) {
-    throw new Error(`Please set TRACKER_TOPIC value`)
-  }
-  await publisher.init({ projectId, topic })
+  // setup bandit manager
+  const redisUrl = url.parse(settings.REDIS_URI)
+  const manager = new BanditManager({
+    store: {
+      type: BanditStoreType.REDIS,
+      options: {
+        host: redisUrl.host ?? 'localhost',
+        port: parseInt(redisUrl.port ?? '6379', 10)
+      }
+    },
+    banditType: BanditType.THOMPSON
+  })
+  await manager.init()
 
   // Setup app
   const app = express()
@@ -35,7 +40,7 @@ export async function startup () {
 
   // attach the publisher in the request
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    req.publisher = publisher
+    req.manager = manager
     return next()
   })
 
@@ -59,7 +64,7 @@ export async function startup () {
 }
 
 if (require.main === module) {
-  const port = settings.get('PORT')
+  const port = settings.PORT
   // tslint:disable-next-line: no-floating-promises
   startup()
   .then(app => {

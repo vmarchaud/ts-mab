@@ -11,6 +11,14 @@ export class BanditManager {
     this._store = new (getBanditStore(_options.store.type))(_options.store.options)
   }
 
+  async init () {
+    await this._store.connect()
+  }
+
+  async destroy () {
+    await this._store.disconnect()
+  }
+
   async pick (options: PickArmsBanditOptions): Promise<PickArmsBanditResult> {
     let [ bandit, err ] = await of(this._store.find({
       identifier: options.identifier,
