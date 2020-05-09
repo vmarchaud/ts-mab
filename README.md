@@ -13,7 +13,7 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**create**](#create) | **PUT** /bandits/{id} | 
 [**get**](#get) | **GET** /bandits/{id} | 
-[**pick**](#pick) | **GET** /bandits/{id}/pick/{pickId} | 
+[**pick**](#pick) | **GET** /bandits/{id}/pick/{pickId}?count={count} | You can use `count` if you want to make multiple pick within the same request  
 [**reward**](reward) | **GET** /bandits/{id}/reward/{arm} | 
 [**update**](#update) | **POST** /bandits/{id} | 
 
