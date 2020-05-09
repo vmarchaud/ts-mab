@@ -4,33 +4,6 @@ import { getBanditStore, getBanditImpl } from './utils'
 import { RedisBanditStoreOptions } from './store/redis'
 import { of } from 'await-of'
 
-export type BanditManagerOptions = {
-  banditType: BanditType
-  store: {
-    type: BanditStoreType
-    options: RedisBanditStoreOptions
-  }
-}
-
-export type CreateBanditOptions = {
-  identifier: string
-  arms: string[],
-  scope: string
-}
-
-export type UpdateBanditOptions = {
-  identifier: string,
-  arms: string[],
-  scope: string
-}
-
-export type PickArmsBanditOptions = {
-  identifier: string,
-  armsCount: number,
-  pickId?: string,
-  useArmSubset?: string[]
-}
-
 export class BanditManager {
   private _store: BanditStore
 
@@ -38,8 +11,8 @@ export class BanditManager {
     this._store = new (getBanditStore(_options.store.type))(_options.store.options)
   }
 
-  async pick (options: PickArmsBanditOptions): Promise<BanditArm[]> {
-    let [ bandit, err ] = await of(this._store.load({
+  async pick (options: PickArmsBanditOptions): Promise<PickArmsBanditResult> {
+    let [ bandit, err ] = await of(this._store.find({
       identifier: options.identifier,
       useArmSubset: options.useArmSubset
     }))
@@ -49,50 +22,49 @@ export class BanditManager {
     const pickedArms: BanditArm[] = []
     for (let i = 0; i < options.armsCount; i++) {
       const arm = await bandit.pick({
+        // if we have multiple pick to make, we ignore previous pick to pick them twice
         excludeArms: pickedArms.map(arm => arm.identifier),
         includeArms: options.useArmSubset ?? []
       })
       pickedArms.push(arm)
     }
-    return pickedArms
+    // this result is temporary since we don't know if someone else has
+    // already computed a result
+    const tmpResult: PickArmsBanditResult = {
+      arms: pickedArms.map(arm => arm.identifier),
+      bandit: options.identifier,
+      pickId: options.pickId
+    }
+    const result = await this._store.saveResult(tmpResult)
+    for (let arm of result.arms) {
+      void this._store.markArmTrial(bandit.identifier, arm)
+    }
+    return result
   }
 
-  async update (options: UpdateBanditOptions): Promise<Bandit> {
-    let [ bandit, err ] = await of(this._store.load({
-      identifier: options.identifier,
-      fetchDisabledArms: true
-    }))
-    if (bandit === undefined) {
+  async rewardBandit (options: RewardBanditOptions) {
+    await this._store.markArmSuccess(options.bandit, options.arm)
+  }
+
+  async update (options: UpdateBanditOptions): Promise<void> {
+    const [ armsAlreadyExisting, err ] = await of(this._store.listArms(options.identifier))
+    if (armsAlreadyExisting === undefined) {
       throw err ?? new Error(`Bandit not found, ${options.identifier}`)
     }
-    // re-enable arms that were disabled
-    bandit.arms
-      .filter(arm => arm.disabled === true)
-      .filter(arm => options.arms.includes(arm.identifier))
-      .forEach(arm => {
-        arm.disabled = true
+    // remove arm that are no longer here
+    await Promise.all(armsAlreadyExisting
+      .filter(armId => options.arms.includes(armId) === false)
+      .map(armId => {
+        return this._store.removeArm(options.identifier, armId)
       })
-    // disable arm that are no longer here
-    bandit.arms
-      .filter(arm => options.arms.includes(arm.identifier) === false)
-      .forEach(arm => {
-        arm.disabled = true
-      })
+    )
     // add new arms
-    const armsAlreadyExisting = bandit.arms.map(arm => arm.identifier)
-    options.arms
+    await Promise.all(options.arms
       .filter(armId => armsAlreadyExisting.includes(armId) === false)
-      .forEach(armId => {
-        const arm: BanditArm = {
-          identifier: armId,
-          disabled: false,
-          successes: 0,
-          trials: 0
-        }
-        bandit!.arms.push(arm)
+      .map(armId => {
+        return this._store.addArm(options.identifier, armId)
       })
-    await this._store.save(bandit)
-    return bandit
+    )
   }
 
   async create (options: CreateBanditOptions): Promise<Bandit> {
@@ -108,7 +80,45 @@ export class BanditManager {
       scope: options.scope
     }
     const bandit = new (getBanditImpl(this._options.banditType))(options.identifier, arms, metadata)
-    await this._store.save(bandit)
+    await this._store.create(bandit)
     return bandit
   }
+}
+
+export type BanditManagerOptions = {
+  banditType: BanditType
+  store: {
+    type: BanditStoreType
+    options: RedisBanditStoreOptions
+  }
+}
+
+export type CreateBanditOptions = {
+  identifier: string
+  arms: string[]
+  scope: string
+}
+
+export type UpdateBanditOptions = {
+  identifier: string
+  arms: string[]
+}
+
+export type PickArmsBanditOptions = {
+  identifier: string
+  armsCount: number
+  pickId: string
+  useArmSubset?: string[]
+}
+
+export type PickArmsBanditResult = {
+  arms: string[]
+  bandit: string
+  pickId: string
+}
+
+export type RewardBanditOptions = {
+  arm: string
+  bandit: string
+  pickId?: string
 }

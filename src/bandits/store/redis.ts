@@ -1,10 +1,11 @@
-import { BanditMetadataIO } from '../types'
+import { BanditMetadataIO, BanditArm } from '../types'
 import IORedis from 'ioredis'
-import { BanditStore, BanditArm, StoreLoadOptions } from './types'
+import { BanditStore, StoreLoadOptions, FetchResultOptions } from './types'
 import { ThompsonSamplingBandit } from '../impls/thompson'
 import { of } from 'await-of'
 import { decodeIO } from '../../lib/io-types'
 import { BaseBandit } from '../impls/base'
+import { PickArmsBanditResult } from '../manager'
 
 export type RedisBanditStoreOptions = IORedis.RedisOptions
 
@@ -33,39 +34,78 @@ export class RedisBanditStore implements BanditStore {
     this._redis.disconnect()
   }
 
-  async load (options: StoreLoadOptions): Promise<BaseBandit> {
-    let arms: BanditArm[] = []
-    let rawMetadata: string | null = null
-    if (options.useArmSubset !== undefined) {
-      const rawArms = await this._redis.hmget(options.identifier, ...options.useArmSubset)
-      arms = rawArms
-        .filter(arm => arm !== null)
-        .map(arm => JSON.parse(arm as string) as BanditArm)
-      rawMetadata = await this._redis.hget(options.identifier, '__metadata')
-    } else {
-      const rawArms = await this._redis.hgetall(options.identifier)
-      arms = Object.values(rawArms)
-        .filter(([key, value]) => {
-          if (key === '__metadata') {
-            rawMetadata = value
-            return false
-          }
-          return true
-        })
-        .map(([key, arm]) => arm)
-        .map(arm => JSON.parse(arm) as BanditArm)
-    }
+  async find (options: StoreLoadOptions): Promise<BaseBandit> {
+    // fetch metadata
+    const rawMetadata = await this._redis.get(`${options.identifier}:metadata`)
     const [ metadata, err ] = await of(decodeIO(BanditMetadataIO, rawMetadata))
     if (err || metadata === undefined) {
       throw err ?? new Error(`Got no scope while trying to load bandit ${options.identifier}`)
     }
+    // fetch arms
+    let armsToFetch: string[] = []
+    if (options.useArmSubset === undefined) {
+      armsToFetch = await this._redis.lrange(`${options.identifier}:arms`, 0, -1)
+    } else {
+      armsToFetch = options.useArmSubset
+    }
+    const aggResponse = (agg: Record<string, number>, armValue: string | null, idx: number) => {
+      if (armValue === null) return agg
+      agg[options.useArmSubset![idx]] = parseInt(armValue, 10)
+      return agg
+    }
+    const rawSuccess = await this._redis.hmget(`${options.identifier}:successes`, ...armsToFetch)
+    const armSuccesses = rawSuccess.reduce(aggResponse, {})
+    const rawTrials = await this._redis.hmget(`${options.identifier}:trials`, ...armsToFetch)
+    const armTrials = rawTrials.reduce(aggResponse, {})
+
+    // convert arms records into a single object for each arm
+    const arms: BanditArm[] = armsToFetch.map(arm => {
+      return {
+        identifier: arm,
+        trials: armTrials[arm] ?? 0,
+        successes: armSuccesses[arm] ?? 0
+      }
+    })
     return new ThompsonSamplingBandit(options.identifier, arms, metadata)
   }
 
-  async save (bandit: BaseBandit): Promise<void> {
-    for (let arm of bandit.arms) {
-      await this._redis.hset(bandit.identifier, arm.identifier, JSON.stringify(arm))
-    }
-    await this._redis.hset(bandit.identifier, '__metadata', JSON.stringify(bandit.metadata))
+  async listArms (bandit: string) {
+    return this._redis.smembers(`${bandit}:arms`)
+  }
+
+  async removeArm (bandit: string, arm: string) {
+    await this._redis.srem(`${bandit}:arms`, arm)
+  }
+
+  async addArm (bandit: string, arm: string) {
+    await this._redis.sadd(`${bandit}:arms`, arm)
+  }
+
+  async create (bandit: BaseBandit): Promise<void> {
+    const arms = bandit.arms.map(arm => arm.identifier)
+    await this._redis.sadd(`${bandit}:arms`, ...arms)
+    await this._redis.set(`${bandit.identifier}:metadata`, JSON.stringify(bandit.metadata))
+  }
+
+  async fetchResult (options: FetchResultOptions) {
+    const result = await this._redis.get(`${options.bandit}:result:${options.pickId}`)
+    return result === null ? undefined : JSON.stringify(result) as unknown as PickArmsBanditResult
+  }
+
+  async saveResult (result: PickArmsBanditResult) {
+    const hasBeenSaved = await this._redis.setnx(`${result.bandit}:result:${result.pickId}`, JSON.stringify(result))
+    if (hasBeenSaved) return result
+    // if the key hasnt been saved, that means another server has computed values, he will use them
+    const oldResult = await this.fetchResult({ pickId: result.pickId, bandit: result.bandit })
+    // oldResult could be undefined in case of network failure
+    return oldResult ?? result
+  }
+
+  async markArmSuccess (bandit: string, arm: string) {
+    await this._redis.hincrby(`${bandit}:successes`, arm, 1)
+  }
+
+  async markArmTrial (bandit: string, arm: string) {
+    await this._redis.hincrby(`${bandit}:trials`, arm, 1)
   }
 }

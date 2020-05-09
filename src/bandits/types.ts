@@ -2,7 +2,6 @@ import * as t from 'io-ts'
 
 export type BanditArm = {
   identifier: string
-  disabled: boolean
   trials: number
   successes: number
 }
@@ -22,7 +21,8 @@ export type BanditPickOptions = {
   includeArms: string[]
 }
 
-export type BandidPickResult = {
+export type BanditPickResult = {
+  pickId: string
   identifier: string
 }
 
