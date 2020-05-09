@@ -1,0 +1,67 @@
+{
+  "name": "mab-next",
+  "version": "2.4.0",
+  "description": "",
+  "main": "src/index.js",
+  "engines": {
+    "node": "^12"
+  },
+  "scripts": {
+    "lint": "tslint -p tsconfig.json",
+    "dev": "TS_NODE_FILES=true ts-node -P ./tsconfig.json src/index.ts",
+    "test": "cov8 ava",
+    "posttest": "cov8 report text && yarn lint",
+    "coverage": "cov8 report json && codecov -f coverage/*.json -p ../..",
+    "build": "tsc --project .",
+    "img-build": "docker build . --build-arg=\"NPM_TOKEN=${NPM_TOKEN}\" -t mab-next"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@godaddy/terminus": "^4.3.1",
+    "@google-cloud/pubsub": "^1.4.1",
+    "@rlvt/logging": "^3.0.2",
+    "await-of": "^3.0.0",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "express-async-errors": "^3.1.1",
+    "fp-ts": "^2.2.0",
+    "io-ts": "^2.0.1",
+    "io-ts-reporters": "^1.0.0",
+    "ioredis": "^4.16.3",
+    "nconf": "^0.10.0",
+    "source-map-support": "^0.5.16",
+    "useragent": "2.3.0"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.17.1",
+    "@types/cors": "^2.8.6",
+    "@types/express": "^4.17.2",
+    "@types/ioredis": "^4.16.1",
+    "@types/nconf": "^0.10.0",
+    "@types/pino": "^6.0.0",
+    "@types/useragent": "^2.1.1",
+    "ava": "^2.4.0",
+    "codecov": "^3.6.1",
+    "proxyquire": "2.1.0",
+    "ts-node": "^8.10.1",
+    "tslint": "^5.20.1",
+    "tslint-config-standard": "^9.0.0",
+    "typescript": "^3.8.3",
+    "v8-coverage": "^1.0.9"
+  },
+  "ava": {
+    "files": [
+      "test/**/*.test.ts"
+    ],
+    "compileEnhancements": false,
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register/transpile-only"
+    ]
+  }
+}
