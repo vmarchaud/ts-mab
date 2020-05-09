@@ -34,6 +34,7 @@ export class BanditManager {
         excludeArms: pickedArms.map(arm => arm.identifier),
         includeArms: options.useArmSubset ?? []
       })
+      if (arm === undefined) break
       pickedArms.push(arm)
     }
     // this result is temporary since we don't know if someone else has
@@ -50,8 +51,8 @@ export class BanditManager {
     return result
   }
 
-  async rewardBandit (options: RewardBanditOptions) {
-    await this._store.markArmSuccess(options.bandit, options.arm)
+  async reward (options: RewardBanditOptions) {
+    await this._store.markArmSuccess(options.identifier, options.arm)
   }
 
   async update (options: UpdateBanditOptions): Promise<void> {
@@ -91,6 +92,10 @@ export class BanditManager {
     await this._store.create(bandit)
     return bandit
   }
+
+  async get (identifier: string) {
+    return this._store.find({ identifier })
+  }
 }
 
 export type BanditManagerOptions = {
@@ -127,6 +132,6 @@ export type PickArmsBanditResult = {
 
 export type RewardBanditOptions = {
   arm: string
-  bandit: string
+  identifier: string
   pickId?: string
 }

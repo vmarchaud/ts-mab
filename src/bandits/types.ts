@@ -30,5 +30,5 @@ export interface Bandit {
   readonly arms: BanditArm[]
   readonly metadata: BanditMetadata
 
-  pick (options: BanditPickOptions): Promise<BanditArm>
+  pick (options: BanditPickOptions): Promise<BanditArm | undefined>
 }

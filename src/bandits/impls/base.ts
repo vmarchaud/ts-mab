@@ -8,7 +8,7 @@ export abstract class BaseBandit implements Bandit {
     readonly metadata: BanditMetadata) {
   }
 
-  pick (options: BanditPickOptions): Promise<BanditArm> {
+  pick (options: BanditPickOptions): Promise<BanditArm | undefined> {
     throw new Error('Method not implemented.')
   }
 }

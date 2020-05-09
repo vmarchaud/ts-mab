@@ -4,7 +4,7 @@ import { BaseBandit } from './base'
 
 export class ThompsonSamplingBandit extends BaseBandit {
 
-  async pick (options: BanditPickOptions): Promise<BanditArm> {
+  async pick (options: BanditPickOptions): Promise<BanditArm | undefined> {
     // compute arms that we want to actually use
     const armSubset = this.arms
       .filter(arm => options.excludeArms.includes(arm.identifier) === false)
@@ -12,7 +12,7 @@ export class ThompsonSamplingBandit extends BaseBandit {
     return this._chooseArm(armSubset)
   }
 
-  private _chooseArm (subset: BanditArm[]): BanditArm {
+  private _chooseArm (subset: BanditArm[]): BanditArm | undefined {
     // get the highest element index on the beta distribution
     const idx = maxIndex(subset.map(arm => {
       // Draw random sample from beta distribution

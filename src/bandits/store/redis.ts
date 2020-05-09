@@ -37,20 +37,23 @@ export class RedisBanditStore implements BanditStore {
   async find (options: StoreLoadOptions): Promise<BaseBandit> {
     // fetch metadata
     const rawMetadata = await this._redis.get(`${options.identifier}:metadata`)
-    const [ metadata, err ] = await of(decodeIO(BanditMetadataIO, rawMetadata))
+    if (rawMetadata === null) {
+      throw new Error(`Bandit metadata not found`)
+    }
+    const [ metadata, err ] = await of(decodeIO(BanditMetadataIO, JSON.parse(rawMetadata)))
     if (err || metadata === undefined) {
       throw err ?? new Error(`Got no scope while trying to load bandit ${options.identifier}`)
     }
     // fetch arms
     let armsToFetch: string[] = []
     if (options.useArmSubset === undefined) {
-      armsToFetch = await this._redis.lrange(`${options.identifier}:arms`, 0, -1)
+      armsToFetch = await this._redis.smembers(`${options.identifier}:arms`)
     } else {
       armsToFetch = options.useArmSubset
     }
     const aggResponse = (agg: Record<string, number>, armValue: string | null, idx: number) => {
       if (armValue === null) return agg
-      agg[options.useArmSubset![idx]] = parseInt(armValue, 10)
+      agg[armsToFetch[idx]] = parseInt(armValue, 10)
       return agg
     }
     const rawSuccess = await this._redis.hmget(`${options.identifier}:successes`, ...armsToFetch)
@@ -83,13 +86,13 @@ export class RedisBanditStore implements BanditStore {
 
   async create (bandit: BaseBandit): Promise<void> {
     const arms = bandit.arms.map(arm => arm.identifier)
-    await this._redis.sadd(`${bandit}:arms`, ...arms)
+    await this._redis.sadd(`${bandit.identifier}:arms`, ...arms)
     await this._redis.set(`${bandit.identifier}:metadata`, JSON.stringify(bandit.metadata))
   }
 
   async fetchResult (options: FetchResultOptions) {
     const result = await this._redis.get(`${options.bandit}:result:${options.pickId}`)
-    return result === null ? undefined : JSON.stringify(result) as unknown as PickArmsBanditResult
+    return result === null ? undefined : JSON.parse(result) as unknown as PickArmsBanditResult
   }
 
   async saveResult (result: PickArmsBanditResult) {
